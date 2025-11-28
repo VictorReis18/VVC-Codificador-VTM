@@ -9842,14 +9842,15 @@ void InterSearch::xEstimateInterResidualQT(CodingStructure &cs, Partitioner &par
         nNumTransformCands++;
       }
       //------------------------PRINT DOS DADOS CAPTURADOS----------------------------------- 
-      cout << "Frame: " << frame << " X: " << x << " Y: " << y 
-           << " W: " << block_width << " H: " << block_height; 
- 
-      if (tu.cu->firstPU && tu.cu->firstPU->interDir != 0) { 
-        cout << " InterDir: " << (int)tu.cu->firstPU->interDir // 1 = predicao passado; 2 = pred. futuro; 3 = predicao bidirecional 
-             << " RefL0: " << (int)tu.cu->firstPU->refIdx[REF_PIC_LIST_0]   //Indice de referencia 
-             << " MV_L0: (" << tu.cu->firstPU->mv[REF_PIC_LIST_0].getHor() << "," << tu.cu->firstPU->mv[REF_PIC_LIST_0].getVer() << ")"; //vetor de movimento da referencia 
-      } 
+      cout << "Frame: " << frame << " X: " << x << " Y: " << y
+           << " W: " << block_width << " H: " << block_height
+           << " SliceType: " << cs.slice->getSliceType(); //qual tipo de predicao no momento
+
+      if (tu.cu->firstPU && tu.cu->firstPU->interDir != 0) {
+        cout << " InterDir: " << (int)tu.cu->firstPU->interDir // 1 = predição passado; 2 = pred. futuro; 3 = predição bidirecional
+             << " RefL0: " << (int)tu.cu->firstPU->refIdx[REF_PIC_LIST_0] << "\n";  //Indice de referencia
+
+      }
       
       //--------------------------------------------------------------------------------------------- 
 #if APPLY_SBT_SL_ON_MTS
@@ -10919,25 +10920,21 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
   uint64_t finalFracBits = xGetSymbolFracBitsInter( cs, partitioner );
   
 //------------------------CAPTURA DAS TRANFORMADAS-----------------------------
-if (cu.firstTU->mtsIdx[COMPONENT_Y] == MtsType::DCT2_DCT2)
-{
-   cout << "Transform: DCT2_DCT2\n"; }
-else if (cu.firstTU->mtsIdx[COMPONENT_Y] == MtsType::DCT8_DCT8)
-{
-    cout << "Transform: DCT8_DCT8\n";
-}
-else if (cu.firstTU->mtsIdx[COMPONENT_Y] == MtsType::DCT8_DST7)
-{
-  cout << "Transform: DCT8_DST7\n";
-}
-else if (cu.firstTU->mtsIdx[COMPONENT_Y] == MtsType::DST7_DCT8)
-{
-  cout << "Transform: DST7_DCT8\n";
-}
-else if (cu.firstTU->mtsIdx[COMPONENT_Y] == MtsType::DST7_DST7)
-{
-  cout << "Transform: DST7_DST7\n";
-}
+  if (cu.rootCbf)
+  {
+    cout << " Transform: ";
+    switch (cu.firstTU->mtsIdx[COMPONENT_Y])
+    {
+      case MtsType::DCT2_DCT2: cout << "DCT2_DCT2"; break;
+      case MtsType::DCT8_DCT8: cout << "DCT8_DCT8"; break;
+      case MtsType::DCT8_DST7: cout << "DCT8_DST7"; break;
+      case MtsType::DST7_DCT8: cout << "DST7_DCT8"; break;
+      case MtsType::DST7_DST7: cout << "DST7_DST7"; break;
+      case MtsType::SKIP:      cout << "SKIP";      break;
+      default:                cout << "UNKNOWN";   break;
+    }
+  }
+  cout << '\n';
 
 
 //------------------------------------------------------
