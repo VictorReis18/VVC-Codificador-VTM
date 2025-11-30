@@ -4559,6 +4559,9 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
     motionCompensation( pu, predBuf, REF_PIC_LIST_X );
     puIdx++;
   }
+  PelUnitBuf origBuf = pu.cs->getOrgBuf( pu );
+
+  
 
   setWpScalingDistParam( -1, REF_PIC_LIST_X, cu.cs->slice );
 
@@ -9718,9 +9721,6 @@ void InterSearch::xEstimateInterResidualQT(CodingStructure &cs, Partitioner &par
   const int block_height = (int) cu.Y().height;
 
 
-  
-  //------------------------FIM CAPTURA DE COMPLEXIDADE--------------------------
-
   bool checkFull = !partitioner.canSplit(TU_MAX_TR_SPLIT, cs);
   if( cu.sbtInfo && partitioner.canSplit( PartSplit( cu.getSbtTuSplit() ), cs ) )
   {
@@ -9842,15 +9842,42 @@ void InterSearch::xEstimateInterResidualQT(CodingStructure &cs, Partitioner &par
         nNumTransformCands++;
       }
       //------------------------PRINT DOS DADOS CAPTURADOS----------------------------------- 
-      cout << "Frame: " << frame << " X: " << x << " Y: " << y
-           << " W: " << block_width << " H: " << block_height
-           << " SliceType: " << cs.slice->getSliceType(); //qual tipo de predicao no momento
+      static bool headerPrinted = false;
+  if (!headerPrinted)
+  {
+      cout << "Frame;X;Y;W;H;SliceType;SAD;SkipFlag;MergeFlag;IMVMode;MergeIdx;InterDir;RefL0;MV-X-L0;MV-Y-L0;MVD-X-L0;MVD-Y-L0;RefL1;MV-X-L1;MV-Y-L1;MVD-X-L1;MVD-Y-L1\n";
+      headerPrinted = true;
+  }
 
-      if (tu.cu->firstPU && tu.cu->firstPU->interDir != 0) {
-        cout << " InterDir: " << (int)tu.cu->firstPU->interDir // 1 = predição passado; 2 = pred. futuro; 3 = predição bidirecional
-             << " RefL0: " << (int)tu.cu->firstPU->refIdx[REF_PIC_LIST_0] << "\n";  //Indice de referencia
+  cout << cu.slice->getPOC() << ";" << cu.Y().x << ";" << cu.Y().y
+       << ";" << cu.Y().width << ";" << cu.Y().height
+       << ";" << cu.slice->getSliceType();
 
+  if (cu.firstPU && !CU::isIntra(cu)) {
+      // Flags e Modos
+      cout << ";" << xGetInterPredictionError(*cu.firstPU, origBuf, REF_PIC_LIST_X)
+           << ";" << cu.skip //indica se o bloco foi codificado em modo skip
+           << ";" << cu.firstPU->mergeFlag //indica se o bloco usou o modo merge
+           << ";" << (int)cu.imv; //indica a precisao do vetor de movimento (pixel inteiro/ meio pixel...)
+
+      if (cu.firstPU->mergeFlag) {
+          cout << ";" << (int)cu.firstPU->mergeIdx; //o indice do candidato do merge escolhido
       }
+
+      // Detalhes do Vetor de Movimento
+      cout << ";" << (int)cu.firstPU->interDir; //direcao do vetor
+      if (cu.firstPU->interDir & 1) { // L0 vetor de referencia passado
+          cout << ";" << (int)cu.firstPU->refIdx[REF_PIC_LIST_0]
+               << ";" << cu.firstPU->mv[REF_PIC_LIST_0].getHor() << ";" << cu.firstPU->mv[REF_PIC_LIST_0].getVer()
+               << ";" << cu.firstPU->mvd[REF_PIC_LIST_0].getHor() << ";" << cu.firstPU->mvd[REF_PIC_LIST_0].getVer();
+      }
+      if (cu.firstPU->interDir & 2) { // L1 vetor de referencia futuro
+          cout << ";" << (int)cu.firstPU->refIdx[REF_PIC_LIST_1]
+               << ";" << cu.firstPU->mv[REF_PIC_LIST_1].getHor() << ";" << cu.firstPU->mv[REF_PIC_LIST_1].getVer()
+               << ";" << cu.firstPU->mvd[REF_PIC_LIST_1].getHor() << ";" << cu.firstPU->mvd[REF_PIC_LIST_1].getVer();
+      }
+  }
+  cout << '\n';
       
       //--------------------------------------------------------------------------------------------- 
 #if APPLY_SBT_SL_ON_MTS
@@ -10922,7 +10949,7 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
 //------------------------CAPTURA DAS TRANFORMADAS-----------------------------
   if (cu.rootCbf)
   {
-    cout << " Transform: ";
+    cout << ";";
     switch (cu.firstTU->mtsIdx[COMPONENT_Y])
     {
       case MtsType::DCT2_DCT2: cout << "DCT2_DCT2"; break;
@@ -10935,9 +10962,7 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
     }
   }
   cout << '\n';
-
-
-//------------------------------------------------------
+  //------------------------------------------------------
 
   // we've now encoded the CU, and so have a valid bit cost
   if (!cu.rootCbf)
