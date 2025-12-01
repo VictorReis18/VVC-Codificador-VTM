@@ -4559,9 +4559,8 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
     motionCompensation( pu, predBuf, REF_PIC_LIST_X );
     puIdx++;
   }
-  PelUnitBuf origBuf = pu.cs->getOrgBuf( pu );
+  //PelUnitBuf origBuf = pu.cs->getOrgBuf( pu );
 
-  
 
   setWpScalingDistParam( -1, REF_PIC_LIST_X, cu.cs->slice );
 
@@ -9714,12 +9713,13 @@ void InterSearch::xEstimateInterResidualQT(CodingStructure &cs, Partitioner &par
   const CodingUnit &cu = *cs.getCU(partitioner.chType);
 
 
-  const int frame = (int) cs.picture->getPOC();
-  const int x = cu.Y().x;
-  const int y = cu.Y().y;
-  const int block_width = (int) cu.Y().width;
-  const int block_height = (int) cu.Y().height;
+ // const int frame = (int) cs.picture->getPOC();
+ // const int x = cu.Y().x;
+  //const int y = cu.Y().y;
+ //const int block_width = (int) cu.Y().width;
+  //const int block_height = (int) cu.Y().height;
 
+  //------------------------FIM CAPTURA DE COMPLEXIDADE--------------------------
 
   bool checkFull = !partitioner.canSplit(TU_MAX_TR_SPLIT, cs);
   if( cu.sbtInfo && partitioner.canSplit( PartSplit( cu.getSbtTuSplit() ), cs ) )
@@ -9855,6 +9855,8 @@ void InterSearch::xEstimateInterResidualQT(CodingStructure &cs, Partitioner &par
 
   if (cu.firstPU && !CU::isIntra(cu)) {
       // Flags e Modos
+      // Recupera o buffer original da CU atual para poder comparar
+      PelUnitBuf origBuf = const_cast<CodingStructure*>(cu.cs)->getOrgBuf(cu);
       cout << ";" << xGetInterPredictionError(*cu.firstPU, origBuf, REF_PIC_LIST_X)
            << ";" << cu.skip //indica se o bloco foi codificado em modo skip
            << ";" << cu.firstPU->mergeFlag //indica se o bloco usou o modo merge
