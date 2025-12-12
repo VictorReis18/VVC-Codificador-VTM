@@ -9800,9 +9800,60 @@ void InterSearch::xEstimateInterResidualQT(CodingStructure &cs, Partitioner &par
     saveCS.area.repositionTo(currArea);
     saveCS.clearTUs();
     TransformUnit & bestTU = saveCS.addTU(CS::getArea(cs, currArea, partitioner.chType), partitioner.chType);
+     //------------------------PRINT DOS DADOS CAPTURADOS----------------------------------- 
+      static bool headerPrinted = false;
+  if (!headerPrinted)
+  {
+      cout << "Frame;X;Y;W;H;SliceType;SAD;SkipFlag;MergeFlag;IMVMode;MergeIdx;InterDir;RefL0;MV-X-L0;MV-Y-L0;MVD-X-L0;MVD-Y-L0;RefL1;MV-X-L1;MV-Y-L1;MVD-X-L1;MVD-Y-L1\n";
+      headerPrinted = true;
+  }
 
+  cout << cu.slice->getPOC() << ";" << cu.Y().x << ";" << cu.Y().y
+       << ";" << cu.Y().width << ";" << cu.Y().height
+       << ";" << cu.slice->getSliceType();
+
+  if (cu.firstPU && !CU::isIntra(cu)) {
+      // Flags e Modos
+      // Recupera o buffer original da CU atual para poder comparar
+      PelUnitBuf origBuf = const_cast<CodingStructure*>(cu.cs)->getOrgBuf(cu);
+      cout << ";" << xGetInterPredictionError(*cu.firstPU, origBuf, REF_PIC_LIST_X)
+           << ";" << cu.skip //indica se o bloco foi codificado em modo skip
+           << ";" << cu.firstPU->mergeFlag //indica se o bloco usou o modo merge
+           << ";" << (int)cu.imv; //indica a precisao do vetor de movimento (pixel inteiro/ meio pixel...)
+
+      if (cu.firstPU->mergeFlag) {
+          cout << ";" << (int)cu.firstPU->mergeIdx; //o indice do candidato do merge escolhido
+      } else {
+          cout << ";-1";
+      }
+
+      // Detalhes do Vetor de Movimento
+      cout << ";" << (int)cu.firstPU->interDir; //direcao do vetor
+      if (cu.firstPU->interDir & 1) { // L0 vetor de referencia passado
+          cout << ";" << (int)cu.firstPU->refIdx[REF_PIC_LIST_0]
+               << ";" << cu.firstPU->mv[REF_PIC_LIST_0].getHor() << ";" << cu.firstPU->mv[REF_PIC_LIST_0].getVer()
+               << ";" << cu.firstPU->mvd[REF_PIC_LIST_0].getHor() << ";" << cu.firstPU->mvd[REF_PIC_LIST_0].getVer();
+      } else {
+          cout << ";-1;0;0;0;0";
+      }
+      if (cu.firstPU->interDir & 2) { // L1 vetor de referencia futuro
+          cout << ";" << (int)cu.firstPU->refIdx[REF_PIC_LIST_1]
+               << ";" << cu.firstPU->mv[REF_PIC_LIST_1].getHor() << ";" << cu.firstPU->mv[REF_PIC_LIST_1].getVer()
+               << ";" << cu.firstPU->mvd[REF_PIC_LIST_1].getHor() << ";" << cu.firstPU->mvd[REF_PIC_LIST_1].getVer();
+      } else {
+          cout << ";-1;0;0;0;0";
+      }
+  } else {
+      cout << ";-1;0;0;0;-1;0;-1;0;0;0;0;-1;0;0;0;0";
+  }
+  cout << '\n';
+
+
+
+  
     for( uint32_t c = 0; c < numTBlocks; c++ )
     {
+
       const ComponentID compID    = ComponentID(c);
       if (compID == COMPONENT_Y && !luma)
       {
@@ -9841,45 +9892,7 @@ void InterSearch::xEstimateInterResidualQT(CodingStructure &cs, Partitioner &par
         trModes.push_back(TrMode(MtsType::SKIP, true));
         nNumTransformCands++;
       }
-      //------------------------PRINT DOS DADOS CAPTURADOS----------------------------------- 
-      static bool headerPrinted = false;
-  if (!headerPrinted)
-  {
-      cout << "Frame;X;Y;W;H;SliceType;SAD;SkipFlag;MergeFlag;IMVMode;MergeIdx;InterDir;RefL0;MV-X-L0;MV-Y-L0;MVD-X-L0;MVD-Y-L0;RefL1;MV-X-L1;MV-Y-L1;MVD-X-L1;MVD-Y-L1\n";
-      headerPrinted = true;
-  }
-
-  cout << cu.slice->getPOC() << ";" << cu.Y().x << ";" << cu.Y().y
-       << ";" << cu.Y().width << ";" << cu.Y().height
-       << ";" << cu.slice->getSliceType();
-
-  if (cu.firstPU && !CU::isIntra(cu)) {
-      // Flags e Modos
-      // Recupera o buffer original da CU atual para poder comparar
-      PelUnitBuf origBuf = const_cast<CodingStructure*>(cu.cs)->getOrgBuf(cu);
-      cout << ";" << xGetInterPredictionError(*cu.firstPU, origBuf, REF_PIC_LIST_X)
-           << ";" << cu.skip //indica se o bloco foi codificado em modo skip
-           << ";" << cu.firstPU->mergeFlag //indica se o bloco usou o modo merge
-           << ";" << (int)cu.imv; //indica a precisao do vetor de movimento (pixel inteiro/ meio pixel...)
-
-      if (cu.firstPU->mergeFlag) {
-          cout << ";" << (int)cu.firstPU->mergeIdx; //o indice do candidato do merge escolhido
-      }
-
-      // Detalhes do Vetor de Movimento
-      cout << ";" << (int)cu.firstPU->interDir; //direcao do vetor
-      if (cu.firstPU->interDir & 1) { // L0 vetor de referencia passado
-          cout << ";" << (int)cu.firstPU->refIdx[REF_PIC_LIST_0]
-               << ";" << cu.firstPU->mv[REF_PIC_LIST_0].getHor() << ";" << cu.firstPU->mv[REF_PIC_LIST_0].getVer()
-               << ";" << cu.firstPU->mvd[REF_PIC_LIST_0].getHor() << ";" << cu.firstPU->mvd[REF_PIC_LIST_0].getVer();
-      }
-      if (cu.firstPU->interDir & 2) { // L1 vetor de referencia futuro
-          cout << ";" << (int)cu.firstPU->refIdx[REF_PIC_LIST_1]
-               << ";" << cu.firstPU->mv[REF_PIC_LIST_1].getHor() << ";" << cu.firstPU->mv[REF_PIC_LIST_1].getVer()
-               << ";" << cu.firstPU->mvd[REF_PIC_LIST_1].getHor() << ";" << cu.firstPU->mvd[REF_PIC_LIST_1].getVer();
-      }
-  }
-  cout << '\n';
+     
       
       //--------------------------------------------------------------------------------------------- 
 #if APPLY_SBT_SL_ON_MTS
