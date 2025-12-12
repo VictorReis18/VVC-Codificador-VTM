@@ -7,12 +7,16 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 # CONFIGURAÇÃO GERAL
 # =======================
 
-NUM_NUCLEOS = 4  # <<< DEFINA AQUI QUANTOS NÚCLEOS QUER USAR
+# Vetor de núcleos que você quer utilizar:
+NUCLEOS = [0, 1, 2, 3]    # <<< altere aqui
+
+# O número de núcleos é determinado automaticamente pelo tamanho do vetor:
+NUM_NUCLEOS = len(NUCLEOS)
 
 diretorio_base = "/home/victor/VVCSoftware_VTM-VTM-23.0/VVCSoftware_VTM-VTM-23.0"
 config_randomaccess = "cfg/encoder_randomaccess_vtm.cfg"
 config_videos_base = os.path.join(diretorio_base, "cfg/per-sequence")
-videos = ["BasketballPass", "BlowingBubbles", "BQSquare"]
+videos = ["BasketballPass"]
 qps = [22, 27, 32, 37]
 
 
@@ -56,7 +60,7 @@ def executar_coding(args):
         subprocess.run(
             comando,
             shell=True,
-            cwd=diretorio_base,  # <<< Executa no diretório correto
+            cwd=diretorio_base,
             check=True
         )
         return f"[OK] {nome_video} | QP={qp} | Frames={frames}"
@@ -90,7 +94,7 @@ def codificar_videos():
 
     tarefas = []
 
-    # Preparar todas as tarefas antes da execução
+    # Preparação das tarefas
     for nome_video in videos:
 
         caminho_cfg = os.path.join(config_videos_base, f"{nome_video}.cfg")
@@ -107,7 +111,7 @@ def codificar_videos():
         for qp in qps:
             tarefas.append((nome_video, qp, frames, caminho_cfg, diretorio_video))
 
-    print(f"\nIniciando paralelização com {NUM_NUCLEOS} núcleos...")
+    print(f"\nIniciando paralelização usando {NUM_NUCLEOS} núcleos: {NUCLEOS}")
     print(f"Total de tarefas: {len(tarefas)}\n")
 
     # EXECUÇÃO PARALELA
