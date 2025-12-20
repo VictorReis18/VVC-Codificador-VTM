@@ -54,6 +54,8 @@ using namespace std;
 #include <math.h>
 #include <limits>
 
+#include "BlockFeatures.h"
+
 //! \ingroup EncoderLib
 //! \{
 
@@ -2767,6 +2769,53 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
   CHECK(!cu.firstPU, "CU does not contain any PUs");
   uint32_t         puIdx = 0;
   auto &pu = *cu.firstPU;
+
+  // --- FEATURE EXTRACTION (Minimally Invasive) ---
+ // --- EXTRAÇÃO DE FEATURES ---
+  // Pega o buffer original de Luma
+  PelUnitBuf origBufFeat = pu.cs->getOrgBuf(pu);
+  PelBuf     yBuf        = origBufFeat.get(COMPONENT_Y);
+  // Cria wrapper do OpenCV (CV_16S pois Pel é short)
+  cv::Mat    blkWrapper(yBuf.height, yBuf.width, CV_16S, yBuf.buf, yBuf.stride * sizeof(Pel));
+  BlockFeatures feats = extract_block_features(blkWrapper);
+  
+  // --- CAPTURA / LOGGING PARA CSV ---
+  static bool headerWritten = false;
+  std::ofstream csvFile;
+  if (!headerWritten)
+  {
+      csvFile.open("features.csv");
+      headerWritten = true;
+      // Escreve o cabeçalho do CSV na primeira vez
+      csvFile << "POC,X,Y,W,H,QP,"
+              << "Mean,Var,StdDev,Sum,"
+              << "VarH,VarV,StdV,StdH,"
+              << "SobelGV,SobelGH,SobelMag,SobelDir,SobelRatio,"
+              << "PrewittGV,PrewittGH,PrewittMag,PrewittDir,PrewittRatio,"
+              << "Min,Max,Range,LaplacianVar,Entropy,"
+              << "H_DC,H_EnergyTotal,H_EnergyAC,H_Max,H_Min,"
+              << "H_TL,H_TR,H_BL,H_BR," << "Transformada" << std::endl;
+  }
+  else
+  {
+      csvFile.open("features.csv", std::ios::app);
+  }
+
+  csvFile << pu.cs->slice->getPOC() << ","
+          << pu.Y().x << "," << pu.Y().y << "," << pu.Y().width << "," << pu.Y().height << ","
+          << cu.qp << ","
+          << feats.blk_pixel_mean << "," << feats.blk_pixel_variance << "," << feats.blk_pixel_std_dev << "," << feats.blk_pixel_sum << ","
+          << feats.blk_var_h << "," << feats.blk_var_v << "," << feats.blk_std_v << "," << feats.blk_std_h << ","
+          << feats.blk_sobel_gv << "," << feats.blk_sobel_gh << "," << feats.blk_sobel_mag << "," << feats.blk_sobel_dir << "," << feats.blk_sobel_razao_grad << ","
+          << feats.blk_prewitt_gv << "," << feats.blk_prewitt_gh << "," << feats.blk_prewitt_mag << "," << feats.blk_prewitt_dir << "," << feats.blk_prewitt_razao_grad << ","
+          << feats.blk_min << "," << feats.blk_max << "," << feats.blk_range << ","
+          << feats.blk_laplacian_var << "," << feats.blk_entropy << ","
+          << feats.hadamard.dc << "," << feats.hadamard.energy_total << "," << feats.hadamard.energy_ac << ","
+          << feats.hadamard.max_coef << "," << feats.hadamard.min_coef << ","
+          << feats.hadamard.top_left << "," << feats.hadamard.top_right << "," << feats.hadamard.bottom_left << "," << feats.hadamard.bottom_right;
+  // ----------------------------
+  // -----------------------------------------------
+
   WPScalingParam *wp0;
   WPScalingParam *wp1;
   int tryBipred = 0;
@@ -10962,20 +11011,24 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
   uint64_t finalFracBits = xGetSymbolFracBitsInter( cs, partitioner );
   
 //------------------------CAPTURA DAS TRANFORMADAS-----------------------------
+  std::ofstream csvFile("features.csv", std::ios::app);
   if (cu.rootCbf)
   {
     cout << ";";
+    csvFile << ",";
     switch (cu.firstTU->mtsIdx[COMPONENT_Y])
     {
-      case MtsType::DCT2_DCT2: cout << "DCT2_DCT2"; break;
-      case MtsType::DCT8_DCT8: cout << "DCT8_DCT8"; break;
-      case MtsType::DCT8_DST7: cout << "DCT8_DST7"; break;
-      case MtsType::DST7_DCT8: cout << "DST7_DCT8"; break;
-      case MtsType::DST7_DST7: cout << "DST7_DST7"; break;
-      case MtsType::SKIP:      cout << "SKIP";      break;
-      default:                cout << "UNKNOWN";   break;
+      case MtsType::DCT2_DCT2: cout << "DCT2_DCT2"; csvFile << "DCT2_DCT2"; break;
+      case MtsType::DCT8_DCT8: cout << "DCT8_DCT8"; csvFile << "DCT8_DCT8"; break;
+      case MtsType::DCT8_DST7: cout << "DCT8_DST7"; csvFile << "DCT8_DST7"; break;
+      case MtsType::DST7_DCT8: cout << "DST7_DCT8"; csvFile << "DST7_DCT8"; break;
+      case MtsType::DST7_DST7: cout << "DST7_DST7"; csvFile << "DST7_DST7"; break;
+      case MtsType::SKIP:      cout << "SKIP";      csvFile << "SKIP";      break;
+      default:                cout << "UNKNOWN";   csvFile << "UNKNOWN";   break;
     }
   }
+  // Finaliza a linha do CSV aqui, independentemente de ter rootCbf ou não
+  csvFile << std::endl;
   cout << '\n';
   //------------------------------------------------------
 
