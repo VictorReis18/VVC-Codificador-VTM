@@ -1,9 +1,10 @@
-#ifndef CAROL_FEATURES_H
-#define CAROL_FEATURES_H
+#ifndef CAROL_GOUP_FEATURES_H
+#define CAROL_GROUP_FEATURES_H
 
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include "BlockFeatures.h"
 
 namespace CAROL {
 
@@ -42,6 +43,8 @@ namespace CAROL {
         if (std::abs(ratio - 32.0) < 0.01) return 5; // 32:1
         return 6; // Outro
     }
+
+    
 }
 
 #endif

@@ -1,0 +1,107 @@
+#include "FeatureLog.h"
+#include "CommonLib/CodingStructure.h"
+#include "CommonLib/Slice.h"
+#include "CommonLib/Unit.h"
+#include <map>
+#include <mutex>
+#include <sstream>
+
+namespace CAROL {
+
+// Estrutura global para evitar conflitos entre threads e RDO
+static std::map<std::string, std::string> g_lineBuffer;
+static std::mutex g_logMutex;
+
+void FeatureLogger::init(const std::string& inputName, int qp) {
+    if (m_initialized) return;
+
+    std::string fileName = inputName + "_" + std::to_string(qp) + ".csv";
+    m_csvFile.open(fileName, std::ios::app);
+
+    m_csvFile.seekp(0, std::ios::end);
+    if (m_csvFile.tellp() == 0) {
+        m_csvFile << "POC,X,Y,W,H,QP,"
+                  << "Mean,Var,StdDev,Sum,VarH,VarV,StdV,StdH,"
+                  << "SobelGV,SobelGH,SobelMag,SobelDir,SobelRatio,"
+                  << "PrewittGV,PrewittGH,PrewittMag,PrewittDir,PrewittRatio,"
+                  << "Min,Max,Range,LaplacianVar,Entropy,"
+                  << "H_DC,H_EnergyTotal,H_EnergyAC,H_Max,H_Min,"
+                  << "H_TL,H_TR,H_BL,H_BR,"
+                  << "SizeGroup,Area,Orientation,AspectRatioIdx,"
+                  << "Transformada" << std::endl;
+    }
+    m_initialized = true;
+}
+
+void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& feats, int baseQP) {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+    
+    if (!m_csvFile.is_open()) return;
+
+    int w = pu.Y().width;
+    int h = pu.Y().height;
+    int x = pu.Y().x;
+    int y = pu.Y().y;
+    int poc = pu.cs->slice->getPOC();
+
+    // Criar chave única para identificar este bloco específico entre start e end
+    std::string key = std::to_string(poc) + "_" + std::to_string(x) + "_" + std::to_string(y);
+
+    std::stringstream ss;
+    // 1. Metadados e Estatísticas Básicas
+    ss << poc << "," << x << "," << y << "," << w << "," << h << "," << baseQP << ","
+       << feats.blk_pixel_mean << "," << feats.blk_pixel_variance << "," << feats.blk_pixel_std_dev << "," << feats.blk_pixel_sum << ","
+       << feats.blk_var_h << "," << feats.blk_var_v << "," << feats.blk_std_v << "," << feats.blk_std_h << ",";
+
+    // 2. Gradientes
+    ss << feats.blk_sobel_gv << "," << feats.blk_sobel_gh << "," << feats.blk_sobel_mag << "," << feats.blk_sobel_dir << "," << feats.blk_sobel_razao_grad << ","
+       << feats.blk_prewitt_gv << "," << feats.blk_prewitt_gh << "," << feats.blk_prewitt_mag << "," << feats.blk_prewitt_dir << "," << feats.blk_prewitt_razao_grad << ",";
+
+    // 3. Contraste e Hadamard
+    ss << feats.blk_min << "," << feats.blk_max << "," << feats.blk_range << "," << feats.blk_laplacian_var << "," << feats.blk_entropy << ","
+       << feats.hadamard.dc << "," << feats.hadamard.energy_total << "," << feats.hadamard.energy_ac << ","
+       << feats.hadamard.max_coef << "," << feats.hadamard.min_coef << ","
+       << feats.hadamard.top_left << "," << feats.hadamard.top_right << "," << feats.hadamard.bottom_left << "," << feats.hadamard.bottom_right << ",";
+
+    // 4. Geometria (Debug)
+    ss << CAROL::determine_size_group(w, h) << "," 
+       << CAROL::determine_area_group(w, h) << "," 
+       << CAROL::determine_orientation_group(w, h) << "," 
+       << CAROL::determine_aspect_ratio_group(w, h);
+
+    // Armazena no buffer global usando a chave (POC_X_Y)
+    g_lineBuffer[key] = ss.str();
+}
+
+void FeatureLogger::endLine(const CodingUnit& cu) {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+
+    if (!m_csvFile.is_open()) return;
+
+    // Recuperar a chave usando as coordenadas da CU
+    std::string key = std::to_string(cu.slice->getPOC()) + "_" + std::to_string(cu.lx()) + "_" + std::to_string(cu.ly());
+
+    // Só escreve se houver um início de linha correspondente
+    if (g_lineBuffer.find(key) != g_lineBuffer.end()) {
+        std::string transName = "UNKNOWN";
+        if (cu.rootCbf) {
+            switch (cu.firstTU->mtsIdx[COMPONENT_Y]) {
+                case MtsType::DCT2_DCT2: transName = "DCT2_DCT2"; break;
+                case MtsType::DCT8_DCT8: transName = "DCT8_DCT8"; break;
+                case MtsType::DCT8_DST7: transName = "DCT8_DST7"; break;
+                case MtsType::DST7_DCT8: transName = "DST7_DCT8"; break;
+                case MtsType::DST7_DST7: transName = "DST7_DST7"; break;
+                case MtsType::SKIP:      transName = "SKIP";      break;
+                default:                 transName = "UNKNOWN";   break;
+            }
+        }
+
+        // Escreve a linha completa de uma vez (Atômico para o arquivo)
+        m_csvFile << g_lineBuffer[key] << "," << transName << std::endl;
+
+        // Limpa o buffer para liberar memória e evitar duplicatas
+        g_lineBuffer.erase(key);
+    }
+}
+
+} // namespace CAROL
