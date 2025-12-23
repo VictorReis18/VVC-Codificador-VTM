@@ -37,7 +37,10 @@
 
 #include "InterSearch.h"
 #include <iostream>
-#include "CAROL_Features.h"
+// includes criados
+#include "FeatureLog.h"
+#include "FeatureLog.cpp"
+
 using namespace std;
 
 #include "CommonLib/CommonDef.h"
@@ -55,7 +58,6 @@ using namespace std;
 #include <math.h>
 #include <limits>
 
-#include "BlockFeatures.h"
 
 //! \ingroup EncoderLib
 //! \{
@@ -2771,6 +2773,7 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
   uint32_t         puIdx = 0;
   auto &pu = *cu.firstPU;
 
+  /*
   // --- FEATURE EXTRACTION (Minimally Invasive) ---
  
  // --- EXTRAÇÃO DE FEATURES ---
@@ -2845,6 +2848,19 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
           << feats.hadamard.max_coef << "," << feats.hadamard.min_coef << ","
           << feats.hadamard.top_left << "," << feats.hadamard.top_right << "," << feats.hadamard.bottom_left << "," << feats.hadamard.bottom_right;
   // ----------------------------
+  */
+  // Extrai
+  // Pega o buffer original de Luma
+  PelUnitBuf origBufFeat = pu.cs->getOrgBuf(pu);
+  PelBuf     yBuf        = origBufFeat.get(COMPONENT_Y);
+  // Cria wrapper do OpenCV (CV_16S pois Pel é short)
+  cv::Mat    blkWrapper(yBuf.height, yBuf.width, CV_16S, yBuf.buf, yBuf.stride * sizeof(Pel));
+  BlockFeatures feats = extract_block_features(blkWrapper);
+
+  // Loga metades iniciais
+  auto& logger = CAROL::FeatureLogger::getInstance();
+  logger.init(m_pcEncCfg->CAROL_getInputFileName(), m_pcEncCfg->getBaseQP());
+  logger.startLine(pu, feats, m_pcEncCfg->getBaseQP());
   // -----------------------------------------------
 
   WPScalingParam *wp0;
@@ -11039,9 +11055,8 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
   m_CABACEstimator->getCtx() = ctxStart;
 
   uint64_t finalFracBits = xGetSymbolFracBitsInter( cs, partitioner );
-
+  /*
   //------------------------CAPTURA DAS TRANFORMADAS-----------------------------
-  auto &pu = *cu.firstPU;
   int qp = m_pcEncCfg->getBaseQP();
   std::string inputName = m_pcEncCfg->CAROL_getInputFileName();
   std::string finalFileName = inputName + "_" + std::to_string(qp) + ".csv";
@@ -11060,6 +11075,8 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
     }
   }
   //------------------------------------------------------
+  */
+  CAROL::FeatureLogger::getInstance().endLine(cu);
 
   // we've now encoded the CU, and so have a valid bit cost
   if (!cu.rootCbf)
