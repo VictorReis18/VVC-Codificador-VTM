@@ -2783,7 +2783,7 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
   
   // --- CAPTURA / LOGGING PARA CSV ---
   static bool headerWritten = false;
-  int qp = pu.cu->slice->getSliceQp();
+  int qp = m_pcEncCfg->getBaseQP();
   std::string inputName = m_pcEncCfg->CAROL_getInputFileName();
   std::string finalFileName = inputName + "_" + std::to_string(qp) + ".csv";
   std::ofstream csvFile;
@@ -11042,7 +11042,7 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
 
   //------------------------CAPTURA DAS TRANFORMADAS-----------------------------
   auto &pu = *cu.firstPU;
-  int qp = pu.cu->slice->getSliceQp();
+  int qp = m_pcEncCfg->getBaseQP();
   std::string inputName = m_pcEncCfg->CAROL_getInputFileName();
   std::string finalFileName = inputName + "_" + std::to_string(qp) + ".csv";
   std::ofstream csvFile(finalFileName, std::ios::app);
