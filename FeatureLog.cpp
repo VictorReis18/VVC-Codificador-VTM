@@ -5,6 +5,7 @@
 #include <map>
 #include <mutex>
 #include <sstream>
+#include <locale>
 
 namespace CAROL {
 
@@ -13,6 +14,7 @@ static std::map<std::string, std::string> g_lineBuffer;
 static std::mutex g_logMutex;
 
 void FeatureLogger::init(const std::string& inputName, int qp) {
+    std::lock_guard<std::mutex> lock(g_logMutex);
     if (m_initialized) return;
 
     std::string fileName = inputName + "_" + std::to_string(qp) + ".csv";
@@ -38,16 +40,18 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
     
     if (!m_csvFile.is_open()) return;
 
-    int w = pu.Y().width;
-    int h = pu.Y().height;
-    int x = pu.Y().x;
-    int y = pu.Y().y;
+    const CompArea& blk = pu.blocks[getFirstComponentOfChannel(pu.chType)];
+    int w = blk.width;
+    int h = blk.height;
+    int x = blk.x;
+    int y = blk.y;
     int poc = pu.cs->slice->getPOC();
 
     // Criar chave única para identificar este bloco específico entre start e end
-    std::string key = std::to_string(poc) + "_" + std::to_string(x) + "_" + std::to_string(y);
+    std::string key = std::to_string(poc) + "_" + std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(w) + "_" + std::to_string(h) + "_" + std::to_string((int)pu.chType);
 
     std::stringstream ss;
+    ss.imbue(std::locale::classic()); // Garante ponto como separador decimal
     // 1. Metadados e Estatísticas Básicas
     ss << poc << "," << x << "," << y << "," << w << "," << h << "," << baseQP << ","
        << feats.blk_pixel_mean << "," << feats.blk_pixel_variance << "," << feats.blk_pixel_std_dev << "," << feats.blk_pixel_sum << ","
@@ -79,7 +83,8 @@ void FeatureLogger::endLine(const CodingUnit& cu) {
     if (!m_csvFile.is_open()) return;
 
     // Recuperar a chave usando as coordenadas da CU
-    std::string key = std::to_string(cu.slice->getPOC()) + "_" + std::to_string(cu.lx()) + "_" + std::to_string(cu.ly());
+    const CompArea& blk = cu.blocks[getFirstComponentOfChannel(cu.chType)];
+    std::string key = std::to_string(cu.slice->getPOC()) + "_" + std::to_string(blk.x) + "_" + std::to_string(blk.y) + "_" + std::to_string(blk.width) + "_" + std::to_string(blk.height) + "_" + std::to_string((int)cu.chType);
 
     // Só escreve se houver um início de linha correspondente
     if (g_lineBuffer.find(key) != g_lineBuffer.end()) {
@@ -98,6 +103,7 @@ void FeatureLogger::endLine(const CodingUnit& cu) {
 
         // Escreve a linha completa de uma vez (Atômico para o arquivo)
         m_csvFile << g_lineBuffer[key] << "," << transName << std::endl;
+        m_csvFile.flush(); // Garante que o buffer seja escrito no disco
 
         // Limpa o buffer para liberar memória e evitar duplicatas
         g_lineBuffer.erase(key);
