@@ -2773,94 +2773,23 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
   uint32_t         puIdx = 0;
   auto &pu = *cu.firstPU;
 
-  /*
-  // --- FEATURE EXTRACTION (Minimally Invasive) ---
- 
- // --- EXTRAÇÃO DE FEATURES ---
-  // Pega o buffer original de Luma
-  PelUnitBuf origBufFeat = pu.cs->getOrgBuf(pu);
-  PelBuf     yBuf        = origBufFeat.get(COMPONENT_Y);
-  // Cria wrapper do OpenCV (CV_16S pois Pel é short)
-  cv::Mat    blkWrapper(yBuf.height, yBuf.width, CV_16S, yBuf.buf, yBuf.stride * sizeof(Pel));
-  BlockFeatures feats = extract_block_features(blkWrapper);
   
-  // --- CAPTURA / LOGGING PARA CSV ---
-  static bool headerWritten = false;
-  int qp = m_pcEncCfg->getBaseQP();
-  std::string inputName = m_pcEncCfg->CAROL_getInputFileName();
-  std::string finalFileName = inputName + "_" + std::to_string(qp) + ".csv";
-  std::ofstream csvFile;
-  if (!headerWritten)
-  {
-      csvFile.open(finalFileName);
-      headerWritten = true;
-      // Escreve o cabeçalho do CSV na primeira vez
-      csvFile << "POC,X,Y,W,H,QP,"
-              << "Mean,Var,StdDev,Sum,"
-              << "VarH,VarV,StdV,StdH,"
-              << "SobelGV,SobelGH,SobelMag,SobelDir,SobelRatio,"
-              << "PrewittGV,PrewittGH,PrewittMag,PrewittDir,PrewittRatio,"
-              << "Min,Max,Range,LaplacianVar,Entropy,"
-              << "H_DC,H_EnergyTotal,H_EnergyAC,H_Max,H_Min,"
-              << "H_TL,H_TR,H_BL,H_BR," << "Transformada" << std::endl;
-  }
-  else
-  {
-      csvFile.open(finalFileName, std::ios::app);
-  }
-  std::ofstream debugFile("debug_extraction.csv", std::ios::app);
-  static bool debugHeader = false;
-
-  if (!debugHeader) {
-      debugFile << "W,H,SizeGroup,Area,Orientation,AspectRatioIdx" << std::endl;
-      debugHeader = true;
-  }
-
-  int w = pu.Y().width;
-  int h = pu.Y().height;
-
-  // Chamada das funções do novo módulo
-  int sGrp   = CAROL::determine_size_group(w, h);
-  int area   = CAROL::determine_area_group(w, h);
-  int orient = CAROL::determine_orientation_group(w, h);
-  int ratio  = CAROL::determine_aspect_ratio_group(w, h);
-
-  // Gravação linha a linha
-  debugFile << w << "," 
-            << h << "," 
-            << sGrp << "," 
-            << area << "," 
-            << orient << "," 
-            << ratio << std::endl;
-
-  debugFile.close();
-
-  csvFile << pu.cs->slice->getPOC() << ","
-          << pu.Y().x << "," << pu.Y().y << "," << pu.Y().width << "," << pu.Y().height << ","
-          << cu.qp << ","
-          << feats.blk_pixel_mean << "," << feats.blk_pixel_variance << "," << feats.blk_pixel_std_dev << "," << feats.blk_pixel_sum << ","
-          << feats.blk_var_h << "," << feats.blk_var_v << "," << feats.blk_std_v << "," << feats.blk_std_h << ","
-          << feats.blk_sobel_gv << "," << feats.blk_sobel_gh << "," << feats.blk_sobel_mag << "," << feats.blk_sobel_dir << "," << feats.blk_sobel_razao_grad << ","
-          << feats.blk_prewitt_gv << "," << feats.blk_prewitt_gh << "," << feats.blk_prewitt_mag << "," << feats.blk_prewitt_dir << "," << feats.blk_prewitt_razao_grad << ","
-          << feats.blk_min << "," << feats.blk_max << "," << feats.blk_range << ","
-          << feats.blk_laplacian_var << "," << feats.blk_entropy << ","
-          << feats.hadamard.dc << "," << feats.hadamard.energy_total << "," << feats.hadamard.energy_ac << ","
-          << feats.hadamard.max_coef << "," << feats.hadamard.min_coef << ","
-          << feats.hadamard.top_left << "," << feats.hadamard.top_right << "," << feats.hadamard.bottom_left << "," << feats.hadamard.bottom_right;
-  // ----------------------------
-  */
   // Extrai
   // Pega o buffer original de Luma
   PelUnitBuf origBufFeat = pu.cs->getOrgBuf(pu);
   PelBuf     yBuf        = origBufFeat.get(COMPONENT_Y);
-  // Cria wrapper do OpenCV (CV_16S pois Pel é short)
+
+  // Cria wrapper do OpenCV 
   cv::Mat    blkWrapper(yBuf.height, yBuf.width, CV_16S, yBuf.buf, yBuf.stride * sizeof(Pel));
   BlockFeatures feats = extract_block_features(blkWrapper);
 
-  // Loga metades iniciais
+  // Log das metade inicial
   auto& logger = CAROL::FeatureLogger::getInstance();
   logger.init(m_pcEncCfg->CAROL_getInputFileName(), m_pcEncCfg->getBaseQP());
+
+  // ------------ Chama startLine - primeira fase da captura ------------
   logger.startLine(pu, feats, m_pcEncCfg->getBaseQP());
+
   // -----------------------------------------------
 
   WPScalingParam *wp0;
@@ -11055,28 +10984,11 @@ void InterSearch::encodeResAndCalcRdInterCU(CodingStructure &cs, Partitioner &pa
   m_CABACEstimator->getCtx() = ctxStart;
 
   uint64_t finalFracBits = xGetSymbolFracBitsInter( cs, partitioner );
-  /*
-  //------------------------CAPTURA DAS TRANFORMADAS-----------------------------
-  int qp = m_pcEncCfg->getBaseQP();
-  std::string inputName = m_pcEncCfg->CAROL_getInputFileName();
-  std::string finalFileName = inputName + "_" + std::to_string(qp) + ".csv";
-  std::ofstream csvFile(finalFileName, std::ios::app);
-  if (cu.rootCbf)
-  {
-    switch (cu.firstTU->mtsIdx[COMPONENT_Y])
-    {
-      case MtsType::DCT2_DCT2: cout << "DCT2_DCT2"; csvFile << ";DCT2_DCT2"<< std::endl;; break;
-      case MtsType::DCT8_DCT8: cout << "DCT8_DCT8"; csvFile << ";DCT8_DCT8"<< std::endl;; break;
-      case MtsType::DCT8_DST7: cout << "DCT8_DST7"; csvFile << ";DCT8_DST7"<< std::endl;; break;
-      case MtsType::DST7_DCT8: cout << "DST7_DCT8"; csvFile << ";DST7_DCT8"<< std::endl;; break;
-      case MtsType::DST7_DST7: cout << "DST7_DST7"; csvFile << ";DST7_DST7"<< std::endl;; break;
-      case MtsType::SKIP:      cout << "SKIP";      csvFile << ";SKIP"<< std::endl;;      break;
-      default:                cout << "UNKNOWN";   csvFile << ";UNKNOWN" << std::endl;;   break;
-    }
-  }
-  //------------------------------------------------------
-  */
+
+
+  // ------------ Chamada de endLine implementado em FeatureLog.cpp ------------
   CAROL::FeatureLogger::getInstance().endLine(cu);
+  // ------------ ------------ ------------ ------------ ------------ ------------
 
   // we've now encoded the CU, and so have a valid bit cost
   if (!cu.rootCbf)

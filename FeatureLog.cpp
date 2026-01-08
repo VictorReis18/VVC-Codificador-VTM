@@ -9,7 +9,7 @@
 
 namespace CAROL {
 
-// Estrutura global para evitar conflitos entre threads e RDO
+// Estrutura global para evitar conflitos entre threads 
 static std::map<std::string, std::string> g_lineBuffer;
 static std::mutex g_logMutex;
 
@@ -21,6 +21,7 @@ void FeatureLogger::init(const std::string& inputName, int qp) {
     m_csvFile.open(fileName, std::ios::app);
 
     m_csvFile.seekp(0, std::ios::end);
+
     if (m_csvFile.tellp() == 0) {
         m_csvFile << "POC,X,Y,W,H,QP,"
                   << "Mean,Var,StdDev,Sum,VarH,VarV,StdV,StdH,"
@@ -47,11 +48,11 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
     int y = blk.y;
     int poc = pu.cs->slice->getPOC();
 
-    // Criar chave única para identificar este bloco específico entre start e end
+    // cria key única para identificar este bloco específico entre start e end -> garante confiança para futura extração da feature
     std::string key = std::to_string(poc) + "_" + std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(w) + "_" + std::to_string(h) + "_" + std::to_string((int)pu.chType);
 
     std::stringstream ss;
-    ss.imbue(std::locale::classic()); // Garante ponto como separador decimal
+    ss.imbue(std::locale::classic()); 
     // 1. Metadados e Estatísticas Básicas
     ss << poc << "," << x << "," << y << "," << w << "," << h << "," << baseQP << ","
        << feats.blk_pixel_mean << "," << feats.blk_pixel_variance << "," << feats.blk_pixel_std_dev << "," << feats.blk_pixel_sum << ","
@@ -67,26 +68,27 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
        << feats.hadamard.max_coef << "," << feats.hadamard.min_coef << ","
        << feats.hadamard.top_left << "," << feats.hadamard.top_right << "," << feats.hadamard.bottom_left << "," << feats.hadamard.bottom_right << ",";
 
-    // 4. Geometria (Debug)
+    // 4. Geometria 
     ss << CAROL::determine_size_group(w, h) << "," 
        << CAROL::determine_area_group(w, h) << "," 
        << CAROL::determine_orientation_group(w, h) << "," 
        << CAROL::determine_aspect_ratio_group(w, h);
 
-    // Armazena no buffer global usando a chave (POC_X_Y)
+    // armazena no buffer global usando a key (POC_X_Y)
     g_lineBuffer[key] = ss.str();
 }
 
 void FeatureLogger::endLine(const CodingUnit& cu) {
     std::lock_guard<std::mutex> lock(g_logMutex);
 
+    // verifica abertura do arquivo csv
     if (!m_csvFile.is_open()) return;
 
-    // Recuperar a chave usando as coordenadas da CU
+    // recupera a chave usando as coordenadas da CU
     const CompArea& blk = cu.blocks[getFirstComponentOfChannel(cu.chType)];
     std::string key = std::to_string(cu.slice->getPOC()) + "_" + std::to_string(blk.x) + "_" + std::to_string(blk.y) + "_" + std::to_string(blk.width) + "_" + std::to_string(blk.height) + "_" + std::to_string((int)cu.chType);
 
-    // Só escreve se houver um início de linha correspondente
+    // só escreve se houver um início de linha correspondente
     if (g_lineBuffer.find(key) != g_lineBuffer.end()) {
         std::string transName = "UNKNOWN";
         if (cu.rootCbf) {
@@ -101,13 +103,14 @@ void FeatureLogger::endLine(const CodingUnit& cu) {
             }
         }
 
-        // Escreve a linha completa de uma vez (Atômico para o arquivo)
+        // escreve a linha completa de uma vez (de forma atomica)
         m_csvFile << g_lineBuffer[key] << "," << transName << std::endl;
-        m_csvFile.flush(); // Garante que o buffer seja escrito no disco
 
-        // Limpa o buffer para liberar memória e evitar duplicatas
+        m_csvFile.flush(); // buffer escrito no disco
+
+        // limpa o buffer para liberar memória 
         g_lineBuffer.erase(key);
     }
 }
 
-} // namespace CAROL
+} 
