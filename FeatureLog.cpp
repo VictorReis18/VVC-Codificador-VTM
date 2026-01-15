@@ -42,6 +42,8 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
     if (!m_csvFile.is_open()) return;
 
     const CompArea& blk = pu.blocks[getFirstComponentOfChannel(pu.chType)];
+    uint64_t currentID = m_lineCounter++; // Uso do contador incremental
+    
     int w = blk.width;
     int h = blk.height;
     int x = blk.x;

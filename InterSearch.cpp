@@ -2779,10 +2779,19 @@ void InterSearch::predInterSearch(CodingUnit& cu, Partitioner& partitioner)
   PelUnitBuf origBufFeat = pu.cs->getOrgBuf(pu);
   PelBuf     yBuf        = origBufFeat.get(COMPONENT_Y);
 
-  // Cria wrapper do OpenCV 
-  cv::Mat    blkWrapper(yBuf.height, yBuf.width, CV_16S, yBuf.buf, yBuf.stride * sizeof(Pel));
-  BlockFeatures feats = extract_block_features(blkWrapper);
+// Obtem Buffer de Resíduo de Luma
+const CompArea &blk = pu.blocks[COMPONENT_Y];
+CPelBuf resiBuf     = pu.cs->getResiBuf(blk);
 
+// Wrapper para o bloco original
+cv::Mat blkWrapper(yBuf.height, yBuf.width, CV_16S, yBuf.buf, yBuf.stride * sizeof(Pel));
+
+// Wrapper para o bloco de resíduo
+cv::Mat resiWrapper(resiBuf.height, resiBuf.width, CV_16S, (void*)resiBuf.buf, resiBuf.stride * sizeof(Pel));
+
+// --- Extração de Features ---
+// Agora passando os dois wrappers conforme a nova assinatura
+BlockFeatures feats = extract_block_features(blkWrapper, resiWrapper);
   // Log das metade inicial
   auto& logger = CAROL::FeatureLogger::getInstance();
   logger.init(m_pcEncCfg->CAROL_getInputFileName(), m_pcEncCfg->getBaseQP());

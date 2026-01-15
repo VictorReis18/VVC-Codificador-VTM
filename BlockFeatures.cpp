@@ -192,12 +192,39 @@ inline HadamardFeatures calculate_hadamard_features(const cv::Mat& blk)
 }
 
 // =======================================================
+// 9. FEATURE 9 — Residual Features
+// =======================================================
+
+inline ResidualFeatures calculate_residual_features(const cv::Mat& resi)
+{
+    ResidualFeatures f{};
+    cv::Mat resi_f;
+    resi.convertTo(resi_f, CV_32F);
+
+    // SAD - Soma absoluta dos valores residuais
+    f.sad = cv::sum(cv::abs(resi_f))[0];
+
+    // Soma da última linha e última coluna
+    cv::Mat last_row = resi_f.row(resi_f.rows - 1);
+    cv::Mat last_col = resi_f.col(resi_f.cols - 1);
+    f.last_row_sum = cv::sum(last_row)[0];
+    f.last_col_sum = cv::sum(last_col)[0];
+
+    // TopLeft, TopRight, BottomRight
+    f.top_left     = resi_f.at<float>(0, 0);
+    f.top_right    = resi_f.at<float>(0, resi_f.cols - 1);
+    f.bottom_right = resi_f.at<float>(resi_f.rows - 1, resi_f.cols - 1);
+
+    return f;
+}
+
+// =======================================================
 // MAIN STRUCT
 // =======================================================
 // =======================================================
 // MAIN EXTRACTION
 // =======================================================
-BlockFeatures extract_block_features(const cv::Mat& blk)
+BlockFeatures extract_block_features(const cv::Mat& blk, const cv::Mat& resi)
 {
     BlockFeatures f{};
     auto [mean,var,std_dev,sum_val] = calculate_basic_features_cv(blk);
@@ -219,6 +246,9 @@ BlockFeatures extract_block_features(const cv::Mat& blk)
     f.blk_entropy = calculate_entropy_cv(blk);
 
     f.hadamard = calculate_hadamard_features(blk);
+
+    // Extração das novas features de resíduo
+    f.residual = calculate_residual_features(resi);
     return f;
 }
 
@@ -259,4 +289,12 @@ void print_features(const BlockFeatures& f)
     std::cout << " H_top_right    = " << f.hadamard.top_right << "\n";
     std::cout << " H_bottom_left  = " << f.hadamard.bottom_left << "\n";
     std::cout << " H_bottom_right = " << f.hadamard.bottom_right << "\n";
+    // Residual
+    std::cout << " --- Residual Features ---\n";
+    std::cout << " resi_sad      = " << f.residual.sad << "\n";
+    std::cout << " resi_last_row = " << f.residual.last_row_sum << "\n";
+    std::cout << " resi_last_col = " << f.residual.last_col_sum << "\n";
+    std::cout << " resi_TL       = " << f.residual.top_left << "\n";
+    std::cout << " resi_TR       = " << f.residual.top_right << "\n";
+    std::cout << " resi_BR       = " << f.residual.bottom_right << "\n";
 }

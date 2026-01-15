@@ -16,6 +16,15 @@ struct HadamardFeatures {
     double bottom_right;
 };
 
+struct ResidualFeatures {
+    double sad;
+    double last_row_sum;
+    double last_col_sum;
+    double top_left;
+    double top_right;
+    double bottom_right;
+};
+
 struct BlockFeatures {
     double blk_pixel_mean;
     double blk_pixel_variance;
@@ -43,9 +52,12 @@ struct BlockFeatures {
 
     // Hadamard
     HadamardFeatures hadamard;
+
+    //Residuos
+    ResidualFeatures residual;
 };
 
-BlockFeatures extract_block_features(const cv::Mat& blk);
+BlockFeatures extract_block_features(const cv::Mat& blk, const cv::Mat& resi);
 void print_features(const BlockFeatures& f);
 
 #endif // __BLOCK_FEATURES_H__
