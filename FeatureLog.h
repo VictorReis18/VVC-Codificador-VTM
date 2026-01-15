@@ -33,10 +33,10 @@ public:
     void init(const std::string& inputName, int qp);
 
     // Escreve a primeira parte da linha (Features + Geometria)
-    void startLine(const PredictionUnit& pu, const BlockFeatures& feats, int qp);
+    std::string startLine(const PredictionUnit& pu, const BlockFeatures& feats, int qp);
 
     // Escreve a parte final (Transformada) e quebra a linha
-    void endLine(const CodingUnit& cu,const std::string& key);
+    void endLine(const CodingUnit& cu);
 
     // Fecha os arquivos manualmente se necessário
     void close() {

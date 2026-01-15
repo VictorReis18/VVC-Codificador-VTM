@@ -37,10 +37,10 @@ void FeatureLogger::init(const std::string& inputName, int qp) {
     m_initialized = true;
 }
 
-void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& feats, int baseQP) {
+std::string FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& feats, int baseQP) {
     std::lock_guard<std::mutex> lock(g_logMutex);
     
-    if (!m_csvFile.is_open()) return;
+    if (!m_csvFile.is_open()) return "";
 
     const CompArea& blk = pu.blocks[getFirstComponentOfChannel(pu.chType)];
     uint64_t currentID = m_lineCounter++; // Uso do contador incremental
@@ -58,7 +58,7 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
                         std::to_string(blk.width) + "_" + 
                         std::to_string(blk.height) + "_" + 
                         std::to_string((int)pu.chType) + "_" + 
-                        std::to_string(id);
+                        std::to_string(currentID);
     std::stringstream ss;
     ss.imbue(std::locale::classic()); 
     // 1. Metadados e Estatísticas Básicas
