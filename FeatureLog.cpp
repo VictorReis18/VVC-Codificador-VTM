@@ -31,6 +31,7 @@ void FeatureLogger::init(const std::string& inputName, int qp) {
                   << "H_DC,H_EnergyTotal,H_EnergyAC,H_Max,H_Min,"
                   << "H_TL,H_TR,H_BL,H_BR,"
                   << "SizeGroup,Area,Orientation,AspectRatioIdx,"
+                  << "Resi_SAD,Resi_LastRowSum,Resi_LastColSum,Resi_TL,Resi_TR,Resi_BR,"                  
                   << "Transformada" << std::endl;
     }
     m_initialized = true;
@@ -43,7 +44,7 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
 
     const CompArea& blk = pu.blocks[getFirstComponentOfChannel(pu.chType)];
     uint64_t currentID = m_lineCounter++; // Uso do contador incremental
-    
+
     int w = blk.width;
     int h = blk.height;
     int x = blk.x;
@@ -51,8 +52,13 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
     int poc = pu.cs->slice->getPOC();
 
     // cria key única para identificar este bloco específico entre start e end -> garante confiança para futura extração da feature
-    std::string key = std::to_string(poc) + "_" + std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(w) + "_" + std::to_string(h) + "_" + std::to_string((int)pu.chType);
-
+    std::string key = std::to_string(pu.cs->slice->getPOC()) + "_" + 
+                        std::to_string(blk.x) + "_" + 
+                        std::to_string(blk.y) + "_" + 
+                        std::to_string(blk.width) + "_" + 
+                        std::to_string(blk.height) + "_" + 
+                        std::to_string((int)pu.chType) + "_" + 
+                        std::to_string(id);
     std::stringstream ss;
     ss.imbue(std::locale::classic()); 
     // 1. Metadados e Estatísticas Básicas
@@ -78,20 +84,19 @@ void FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& fea
 
     // armazena no buffer global usando a key (POC_X_Y)
     g_lineBuffer[key] = ss.str();
+    return key;
 }
 
 void FeatureLogger::endLine(const CodingUnit& cu) {
     std::lock_guard<std::mutex> lock(g_logMutex);
 
+    // Recupera a chave
+    const std::string& key = cu.carolKey;
     // verifica abertura do arquivo csv
     if (!m_csvFile.is_open()) return;
 
-    // recupera a chave usando as coordenadas da CU
-    const CompArea& blk = cu.blocks[getFirstComponentOfChannel(cu.chType)];
-    std::string key = std::to_string(cu.slice->getPOC()) + "_" + std::to_string(blk.x) + "_" + std::to_string(blk.y) + "_" + std::to_string(blk.width) + "_" + std::to_string(blk.height) + "_" + std::to_string((int)cu.chType);
-
     // só escreve se houver um início de linha correspondente
-    if (g_lineBuffer.find(key) != g_lineBuffer.end()) {
+    if (!key.empty() && g_lineBuffer.find(key) != g_lineBuffer.end()) {
         std::string transName = "UNKNOWN";
         if (cu.rootCbf) {
             switch (cu.firstTU->mtsIdx[COMPONENT_Y]) {

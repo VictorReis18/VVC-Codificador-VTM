@@ -2797,7 +2797,7 @@ BlockFeatures feats = extract_block_features(blkWrapper, resiWrapper);
   logger.init(m_pcEncCfg->CAROL_getInputFileName(), m_pcEncCfg->getBaseQP());
 
   // ------------ Chama startLine - primeira fase da captura ------------
-  logger.startLine(pu, feats, m_pcEncCfg->getBaseQP());
+  cu.carolKey = logger.startLine(pu, feats, m_pcEncCfg->getBaseQP());
 
   // -----------------------------------------------
 

@@ -9,6 +9,7 @@
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <atomic>
 
 namespace CAROL {
 
@@ -16,9 +17,9 @@ class FeatureLogger {
 private:
     std::ofstream m_csvFile;
     bool m_initialized = false;
-    std::string m_currentFileName;
+    std::atomic<uint64_t> m_lineCounter{0}; // Contador
 
-    // Construtor privado para Singleton
+    // Construtor privado
     FeatureLogger() {}
 
 public:
@@ -35,7 +36,7 @@ public:
     void startLine(const PredictionUnit& pu, const BlockFeatures& feats, int qp);
 
     // Escreve a parte final (Transformada) e quebra a linha
-    void endLine(const CodingUnit& cu);
+    void endLine(const CodingUnit& cu,const std::string& key);
 
     // Fecha os arquivos manualmente se necessário
     void close() {
@@ -43,7 +44,7 @@ public:
         m_initialized = false;
     }
 
-    // Deletar cópia e atribuição para garantir Singleton puro
+    // Deletar cópia e atribuição para garantir Singleton
     FeatureLogger(const FeatureLogger&) = delete;
     void operator=(const FeatureLogger&) = delete;
 };
