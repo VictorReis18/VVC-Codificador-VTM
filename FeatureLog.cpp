@@ -6,6 +6,9 @@
 #include <mutex>
 #include <sstream>
 #include <locale>
+#include <vector>
+#include <random>
+#include <fstream>
 
 namespace CAROL {
 
@@ -13,34 +16,59 @@ namespace CAROL {
 static std::map<std::string, std::string> g_lineBuffer;
 static std::mutex g_logMutex;
 
+// Globals for reservoir sampling
+static std::map<std::string, std::vector<std::string>> g_reservoirs;
+static std::map<std::string, uint64_t> g_counts;
+static std::string g_videoName;
+static int g_qp = 0;
+static const size_t RESERVOIR_SIZE = 7000;
+static std::mt19937_64 g_rng(std::random_device{}());
+
+// Flusher to write files at exit
+struct ReservoirFlusher {
+    ~ReservoirFlusher() {
+        if (g_videoName.empty()) return;
+
+        std::string header = "POC,X,Y,W,H,QP,"
+                  "Mean,Var,StdDev,Sum,VarH,VarV,StdV,StdH,"
+                  "SobelGV,SobelGH,SobelMag,SobelDir,SobelRatio,"
+                  "PrewittGV,PrewittGH,PrewittMag,PrewittDir,PrewittRatio,"
+                  "Min,Max,Range,LaplacianVar,Entropy,"
+                  "H_DC,H_EnergyTotal,H_EnergyAC,H_Max,H_Min,"
+                  "H_TL,H_TR,H_BL,H_BR,"
+                  "SizeGroup,Area,Orientation,AspectRatioIdx,"
+                  "Resi_SAD,Resi_LastRowSum,Resi_LastColSum,Resi_TL,Resi_TR,Resi_BR,"                  
+                  "Transformada";
+
+        for (auto const& [blockSize, lines] : g_reservoirs) {
+            std::string fileName = g_videoName + "-" + std::to_string(g_qp) + "-" + blockSize + ".csv";
+            std::ofstream outFile(fileName);
+            if (outFile.is_open()) {
+                outFile << header << std::endl;
+                for (const auto& line : lines) {
+                    outFile << line << std::endl;
+                }
+                outFile.close();
+            }
+        }
+    }
+};
+
+static ReservoirFlusher g_flusher;
+
 void FeatureLogger::init(const std::string& inputName, int qp) {
     std::lock_guard<std::mutex> lock(g_logMutex);
     if (m_initialized) return;
 
-    std::string fileName = inputName + "_" + std::to_string(qp) + ".csv";
-    m_csvFile.open(fileName, std::ios::app);
-
-    m_csvFile.seekp(0, std::ios::end);
-
-    if (m_csvFile.tellp() == 0) {
-        m_csvFile << "POC,X,Y,W,H,QP,"
-                  << "Mean,Var,StdDev,Sum,VarH,VarV,StdV,StdH,"
-                  << "SobelGV,SobelGH,SobelMag,SobelDir,SobelRatio,"
-                  << "PrewittGV,PrewittGH,PrewittMag,PrewittDir,PrewittRatio,"
-                  << "Min,Max,Range,LaplacianVar,Entropy,"
-                  << "H_DC,H_EnergyTotal,H_EnergyAC,H_Max,H_Min,"
-                  << "H_TL,H_TR,H_BL,H_BR,"
-                  << "SizeGroup,Area,Orientation,AspectRatioIdx,"
-                  << "Resi_SAD,Resi_LastRowSum,Resi_LastColSum,Resi_TL,Resi_TR,Resi_BR,"                  
-                  << "Transformada" << std::endl;
-    }
+    g_videoName = inputName;
+    g_qp = qp;
     m_initialized = true;
 }
 
 std::string FeatureLogger::startLine(const PredictionUnit& pu, const BlockFeatures& feats, int baseQP) {
     std::lock_guard<std::mutex> lock(g_logMutex);
     
-    if (!m_csvFile.is_open()) return "";
+    if (!m_initialized) return "";
 
     const CompArea& blk = pu.blocks[getFirstComponentOfChannel(pu.chType)];
     uint64_t currentID = m_lineCounter++; // Uso do contador incremental
@@ -93,7 +121,7 @@ void FeatureLogger::endLine(const CodingUnit& cu) {
     // Recupera a chave
     const std::string& key = cu.carolKey;
     // verifica abertura do arquivo csv
-    if (!m_csvFile.is_open()) return;
+    if (!m_initialized) return;
 
     // só escreve se houver um início de linha correspondente
     if (!key.empty() && g_lineBuffer.find(key) != g_lineBuffer.end()) {
@@ -110,10 +138,26 @@ void FeatureLogger::endLine(const CodingUnit& cu) {
             }
         }
 
-        // escreve a linha completa de uma vez (de forma atomica)
-        m_csvFile << g_lineBuffer[key] << "," << transName << std::endl;
+        // Constrói a linha completa
+        std::string fullLine = g_lineBuffer[key] + "," + transName;
 
-        m_csvFile.flush(); // buffer escrito no disco
+        // Determina o tamanho do bloco para o reservatório
+        const CompArea& blk = cu.blocks[getFirstComponentOfChannel(cu.chType)];
+        std::string blockSize = std::to_string(blk.width) + "x" + std::to_string(blk.height);
+
+        // Amostragem de Reservatório
+        uint64_t& count = g_counts[blockSize];
+        count++;
+
+        if (g_reservoirs[blockSize].size() < RESERVOIR_SIZE) {
+            g_reservoirs[blockSize].push_back(fullLine);
+        } else {
+            std::uniform_int_distribution<uint64_t> dist(0, count - 1);
+            uint64_t j = dist(g_rng);
+            if (j < RESERVOIR_SIZE) {
+                g_reservoirs[blockSize][j] = fullLine;
+            }
+        }
 
         // limpa o buffer para liberar memória 
         g_lineBuffer.erase(key);
